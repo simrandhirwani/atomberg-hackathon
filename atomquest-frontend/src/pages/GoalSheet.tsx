@@ -85,12 +85,42 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // ==========================================
-  // DATA FETCHING & OFFLINE DEMO FALLBACK
+  // DATA NORMALIZATION MAPPERS (SNAKE <-> CAMEL)
+  // ==========================================
+  const normalizeGoals = (rawGoals: any[]): EmployeeGoal[] => {
+    if (!Array.isArray(rawGoals)) return [];
+    return rawGoals.map(g => ({
+      id: g.id || Date.now() + Math.random(),
+      thrustArea: g.thrust_area || g.thrustArea || 'Growth',
+      title: g.title || '',
+      target: g.target_value !== undefined ? g.target_value : (g.target !== undefined ? g.target : 100),
+      uom: g.uom || 'Min (Higher is Better)',
+      weight: g.weightage !== undefined ? g.weightage : (g.weight !== undefined ? g.weight : 0),
+      status: g.status || '',
+      q1_actual: g.q1_actual,
+      q2_actual: g.q2_actual
+    }));
+  };
+
+  const normalizeTeamMembers = (rawMembers: any[]): TeamMember[] => {
+    if (!Array.isArray(rawMembers)) return [];
+    return rawMembers.map(m => ({
+      id: m.id,
+      employee: m.employee || 'Unknown Employee',
+      role: m.role || 'Contributor',
+      teamName: m.team_name || m.teamName || 'Team 1',
+      status: m.status || 'Pending Approval',
+      totalWeight: m.total_weight !== undefined ? m.total_weight : (m.totalWeight || 0),
+      goalsCount: m.goals_count !== undefined ? m.goals_count : (m.goalsCount || 0),
+      goals: normalizeGoals(m.goals)
+    }));
+  };
+
+  // ==========================================
+  // DATA FETCHING PIPELINES
   // ==========================================
   const loadDataPipelines = () => {
     setLoading(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
     
     const fetchUrl = currentRole === 'Employee' ? 'https://atomberg-hackathon.onrender.com/api/goals/Employee'
       : currentRole === 'Manager' ? 'https://atomberg-hackathon.onrender.com/api/manager/team'
@@ -99,17 +129,22 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
     fetch(fetchUrl)
       .then(res => res.json())
       .then(data => { 
-        if (!data || data.length === 0) throw new Error("Empty DB");
-        if (currentRole === 'Employee') setEmployeeGoals(data);
-        else if (currentRole === 'Manager') setManagerQueue(data);
-        else setAdminDirectives(data);
+        if (!data || (Array.isArray(data) && data.length === 0)) throw new Error("Empty DB");
+        
+        if (currentRole === 'Employee') {
+          setEmployeeGoals(normalizeGoals(data));
+        } else if (currentRole === 'Manager') {
+          setManagerQueue(normalizeTeamMembers(data));
+        } else {
+          setAdminDirectives(normalizeGoals(data));
+        }
         setLoading(false); 
       })
-      .catch(() => {
-        console.warn("Using Failsafe Offline Demo Data");
+      .catch((err) => {
+        console.warn("Using Failsafe Offline Demo Data due to:", err);
         if (currentRole === 'Employee') setEmployeeGoals(FALLBACK_EMPLOYEE);
         else if (currentRole === 'Manager') setManagerQueue(FALLBACK_MANAGER);
-        else setAdminDirectives(FALLBACK_ADMIN);
+        else setAdminDirectives(normalizeGoals(FALLBACK_ADMIN));
         setLoading(false);
       });
   };
@@ -126,7 +161,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
 
   const handleAddGoal = () => {
     if (employeeGoals.length >= 8) return;
-    setEmployeeGoals([...employeeGoals, { id: Date.now(), thrustArea: 'Growth', title: '', target: 100, uom: 'Min (Higher is Better)', weight: 10 }]);
+    setEmployeeGoals([...employeeGoals, { id: Date.now(), thrustArea: 'Growth', title: '', target: 100, uom: 'Min (Higher is Better)', weight: 10, status: 'Draft' }]);
   };
 
   const handleUpdateGoal = (id: number, field: keyof EmployeeGoal, value: any) => {
@@ -144,31 +179,72 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
     setEmployeeGoals(employeeGoals.filter(g => g.id !== id));
   };
 
+  // ==========================================
+  // SYNC ACTION TRIGGERS (MUTATES SUPABASE LIVE)
+  // ==========================================
   const handleSubmitToBackend = async () => {
-    setErrorMessage(null); setSuccessMessage(null);
-    const formattedGoals = employeeGoals.map(g => ({ thrust_area: g.thrustArea, title: g.title, target_value: g.target, uom: g.uom, weightage: g.weight }));
+    setErrorMessage(null); 
+    setSuccessMessage(null);
+    
+    const formattedGoals = employeeGoals.map(g => ({ 
+      thrust_area: g.thrustArea, 
+      title: g.title, 
+      target_value: g.target, 
+      uom: g.uom, 
+      weightage: g.weight,
+      q2_actual: g.q2_actual || null
+    }));
+
     try {
-      const response = await fetch('https://atomberg-hackathon.onrender.com/api/goals/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: currentRole, goals: formattedGoals }) });
+      const response = await fetch('https://atomberg-hackathon.onrender.com/api/goals/submit', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ role: currentRole, goals: formattedGoals }) 
+      });
       const data = await response.json();
-      if (response.ok) setSuccessMessage("Worksheet successfully synced with database.");
-      else setErrorMessage(data.detail || "Validation check failure.");
+      
+      if (response.ok) {
+        setSuccessMessage("Worksheet successfully synced with Supabase live database.");
+        // Instantly reload database pipeline to preserve user additions permanently
+        loadDataPipelines();
+      } else {
+        setErrorMessage(data.detail || "Validation check failure.");
+      }
     } catch { 
       setSuccessMessage("Worksheet updated locally (Offline Demo Mode)."); 
     }
   };
 
   const handleManagerAction = async (employeeId: number, action: 'approve' | 'rework') => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
     const endpoint = action === 'approve' ? `/api/manager/goals/approve/${employeeId}` : `/api/manager/goals/rework/${employeeId}`;
     const member = managerQueue.find(m => m.id === employeeId);
     if (!member) return;
-    const formattedGoals = member.goals.map(g => ({ thrust_area: g.thrustArea, title: g.title, target_value: g.target, uom: g.uom, weightage: g.weight }));
+    
+    const formattedGoals = member.goals.map(g => ({ 
+      thrust_area: g.thrustArea, 
+      title: g.title, 
+      target_value: g.target, 
+      uom: g.uom, 
+      weightage: g.weight,
+      q2_actual: g.q2_actual || null
+    }));
     
     try {
-      await fetch(`https://atomberg-hackathon.onrender.com${endpoint}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'Employee', goals: formattedGoals })
+      const response = await fetch(`https://atomberg-hackathon.onrender.com${endpoint}`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ role: 'Employee', goals: formattedGoals })
       });
-      setSuccessMessage(action === 'approve' ? "Sheet approved & locked." : "Sheet returned for rework.");
-      loadDataPipelines();
+      
+      if (response.ok) {
+        setSuccessMessage(action === 'approve' ? "Sheet approved & safely locked in database." : "Sheet returned for rework instructions.");
+        loadDataPipelines();
+      } else {
+        const data = await response.json();
+        setErrorMessage(data.detail || "Failed to finalize manager audit action.");
+      }
     } catch { 
       setManagerQueue(prev => prev.map(m => m.id === employeeId ? { ...m, status: action === 'approve' ? 'Locked' : 'Needs Rework' } : m));
       setSuccessMessage(action === 'approve' ? "Sheet approved (Offline Mode)." : "Sheet returned (Offline Mode)."); 
@@ -177,12 +253,31 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
 
   const handleAddCorporateDirective = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    
     try {
-      await fetch('https://atomberg-hackathon.onrender.com/api/admin/shared-goals/add', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thrust_area: dirArea, title: dirTitle, target_value: dirTarget, uom: dirUom, weightage: dirWeight, pushed_to: 'All Departments' })
+      const response = await fetch('https://atomberg-hackathon.onrender.com/api/admin/shared-goals/add', {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ 
+          thrust_area: dirArea, 
+          title: dirTitle, 
+          target_value: dirTarget, 
+          uom: dirUom, 
+          weightage: dirWeight, 
+          pushed_to: 'All Departments' 
+        })
       });
-      setSuccessMessage("KPI securely pushed to all employee worksheets.");
-      setDirTitle(''); loadDataPipelines();
+      
+      if (response.ok) {
+        setSuccessMessage("KPI securely pushed and saved globally to all worker sheets.");
+        setDirTitle(''); 
+        loadDataPipelines();
+      } else {
+        const data = await response.json();
+        setErrorMessage(data.detail || "Directive entry validation failed.");
+      }
     } catch { 
       const newDirective = { id: Date.now(), thrustArea: dirArea, title: `ORG: ${dirTitle}`, target: dirTarget, uom: dirUom, weight: dirWeight, pushedTo: 'All Departments' };
       setAdminDirectives(prev => [...prev, newDirective]);
@@ -217,9 +312,8 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
               const isShared = goal.title.startsWith("[SHARED]") || goal.title.startsWith("ORG:");
               const displayTitle = goal.title.replace("[SHARED] ", "").replace("ORG: ", "");
               
-              // BRD Security Validations
-              const isApproved = goal.status === 'Locked' || goal.status === 'Completed';
-              const isPending = goal.status === 'Pending Approval';
+              const isApproved = goal.status === 'Locked' || goal.status === 'UserLocked' || goal.status === 'Completed';
+              const isPending = goal.status === 'Pending Approval' || goal.status === 'Pending';
               const isReadOnly = isShared || isApproved || isPending;
 
               return (
@@ -249,7 +343,6 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
                       )}
                     </div>
                     
-                    {/* BRD GAP FIX: Phase 2 Achievement Input replaces UoM dropdown if goal is approved */}
                     {isApproved ? (
                       <div className="col-span-1 lg:col-span-2 relative">
                         <label className="block text-[10px] font-black text-emerald-600 mb-1.5 uppercase tracking-wider animate-pulse">Log Actuals (Q2)</label>
@@ -320,6 +413,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
           {filteredManagerQueue.map((item) => {
             const memberWeight = item.goals.reduce((s,g) => s + g.weight, 0);
             const isValid = memberWeight === 100;
+            const isMemberLocked = item.status === 'Locked' || item.status === 'Approved';
 
             return (
             <div key={item.id} className="bg-white border-2 border-slate-200 rounded-xl overflow-hidden shadow-sm hover:border-slate-300 transition-colors">
@@ -327,7 +421,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
                 <div>
                   <h3 className="font-black text-lg text-slate-900">{item.employee}</h3>
                   <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded border ${item.status === 'Locked' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status === 'Needs Rework' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{item.status}</span>
+                    <span className={`text-xs font-black uppercase tracking-wider px-2.5 py-0.5 rounded border ${isMemberLocked ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : item.status === 'Needs Rework' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{item.status}</span>
                     <span className={`text-xs font-bold px-2 py-0.5 rounded flex items-center gap-1 ${isValid ? 'text-slate-500' : 'bg-red-100 text-red-700 font-black'}`}>
                       {isValid ? <CheckCircle size={12} className="text-emerald-500"/> : <XCircle size={12}/>} Wt: {memberWeight}%
                     </span>
@@ -335,7 +429,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
                 </div>
                 <div className="flex gap-2 w-full sm:w-auto">
                   <button onClick={() => handleManagerAction(item.id, 'rework')} className="flex-1 sm:flex-none bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 px-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"><RefreshCw size={14}/> Return for Rework</button>
-                  <button disabled={!isValid || item.status === 'Locked'} onClick={() => handleManagerAction(item.id, 'approve')} className="flex-1 sm:flex-none bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"><CheckCircle size={14}/> Approve & Lock</button>
+                  <button disabled={!isValid || isMemberLocked} onClick={() => handleManagerAction(item.id, 'approve')} className="flex-1 sm:flex-none bg-slate-950 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"><CheckCircle size={14}/> Approve & Lock</button>
                 </div>
               </div>
 
@@ -351,25 +445,25 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
                   <div key={goal.id} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center bg-slate-50/50 lg:bg-transparent p-3 lg:p-0 rounded-lg border border-slate-100 lg:border-none">
                     <div className="lg:col-span-4">
                       <label className="block lg:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Title</label>
-                      <input disabled={item.status === 'Locked'} type="text" value={goal.title} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'title', e.target.value)} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50" />
+                      <input disabled={isMemberLocked} type="text" value={goal.title} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'title', e.target.value)} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50" />
                     </div>
                     <div className="lg:col-span-3">
                       <label className="block lg:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Criteria</label>
-                      <select disabled={item.status === 'Locked'} value={goal.uom} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'uom', e.target.value)} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50">
+                      <select disabled={isMemberLocked} value={goal.uom} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'uom', e.target.value)} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50">
                         <option>Min (Higher is Better)</option><option>Max (Lower is Better)</option><option>Zero-Based</option><option>Timeline</option>
                       </select>
                     </div>
                     <div className="lg:col-span-3">
                       <label className="block lg:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Target</label>
                       {goal.uom === 'Timeline' ? (
-                        <input disabled={item.status === 'Locked'} type="date" value={toDateStr(goal.target)} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'target', toInt(e.target.value))} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50"/> 
+                        <input disabled={isMemberLocked} type="date" value={toDateStr(goal.target)} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'target', toInt(e.target.value))} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50"/> 
                       ) : (
-                        <input disabled={item.status === 'Locked'} type="number" value={goal.target} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'target', Number(e.target.value))} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50" />
+                        <input disabled={isMemberLocked} type="number" value={goal.target} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'target', Number(e.target.value))} className="w-full text-sm font-bold border border-slate-300 rounded-lg p-2.5 outline-none focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50" />
                       )}
                     </div>
                     <div className="lg:col-span-2 relative">
                       <label className="block lg:hidden text-[10px] font-bold text-slate-400 uppercase mb-1">Weight</label>
-                      <input disabled={item.status === 'Locked'} type="number" value={goal.weight} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'weight', Number(e.target.value))} className="w-full text-sm font-black border border-slate-300 rounded-lg p-2.5 outline-none text-yellow-600 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50" />
+                      <input disabled={isMemberLocked} type="number" value={goal.weight} onChange={(e) => handleManagerUpdateGoal(item.id, goal.id, 'weight', Number(e.target.value))} className="w-full text-sm font-black border border-slate-300 rounded-lg p-2.5 outline-none text-yellow-600 focus:border-yellow-400 focus:ring-1 focus:ring-yellow-400 disabled:opacity-60 disabled:bg-slate-50" />
                       <span className="absolute right-3 top-2.5 lg:top-3 text-xs font-black text-slate-400">%</span>
                     </div>
                   </div>
