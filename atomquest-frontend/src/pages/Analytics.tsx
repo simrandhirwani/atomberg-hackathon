@@ -9,7 +9,7 @@ const Analytics = ({ currentRole }: { currentRole: string }) => {
   // FETCH DYNAMIC ORG DATA FROM DB
   useEffect(() => {
     setLoading(true);
-    fetch('http://localhost:8000/api/admin/org-data')
+    fetch('https://atomberg-hackathon.onrender.com/api/admin/org-data')
       .then(res => res.json())
       .then(data => { setOrgData(data); setLoading(false); })
       .catch(() => {

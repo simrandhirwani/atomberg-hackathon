@@ -22,7 +22,7 @@ const AdminControl = ({ currentRole }: { currentRole: string }) => {
   useEffect(() => {
     if (currentRole !== 'Admin') return;
     setLoading(true);
-    fetch('http://localhost:8000/api/admin/audit-logs')
+    fetch('https://atomberg-hackathon.onrender.com/api/admin/audit-logs')
       .then(res => res.json())
       .then(data => {
         setAuditLogs(data.length > 0 ? data : FALLBACK_AUDIT_LOGS);

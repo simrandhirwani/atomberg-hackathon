@@ -92,9 +92,9 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
     setErrorMessage(null);
     setSuccessMessage(null);
     
-    const fetchUrl = currentRole === 'Employee' ? 'http://localhost:8000/api/goals/Employee'
-      : currentRole === 'Manager' ? 'http://localhost:8000/api/manager/team'
-      : 'http://localhost:8000/api/admin/shared-goals';
+    const fetchUrl = currentRole === 'Employee' ? 'https://atomberg-hackathon.onrender.com/api/goals/Employee'
+      : currentRole === 'Manager' ? 'https://atomberg-hackathon.onrender.com/api/manager/team'
+      : 'https://atomberg-hackathon.onrender.com/api/admin/shared-goals';
 
     fetch(fetchUrl)
       .then(res => res.json())
@@ -148,7 +148,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
     setErrorMessage(null); setSuccessMessage(null);
     const formattedGoals = employeeGoals.map(g => ({ thrust_area: g.thrustArea, title: g.title, target_value: g.target, uom: g.uom, weightage: g.weight }));
     try {
-      const response = await fetch('http://localhost:8000/api/goals/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: currentRole, goals: formattedGoals }) });
+      const response = await fetch('https://atomberg-hackathon.onrender.com/api/goals/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: currentRole, goals: formattedGoals }) });
       const data = await response.json();
       if (response.ok) setSuccessMessage("Worksheet successfully synced with database.");
       else setErrorMessage(data.detail || "Validation check failure.");
@@ -164,7 +164,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
     const formattedGoals = member.goals.map(g => ({ thrust_area: g.thrustArea, title: g.title, target_value: g.target, uom: g.uom, weightage: g.weight }));
     
     try {
-      await fetch(`http://localhost:8000${endpoint}`, {
+      await fetch(`https://atomberg-hackathon.onrender.com${endpoint}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'Employee', goals: formattedGoals })
       });
       setSuccessMessage(action === 'approve' ? "Sheet approved & locked." : "Sheet returned for rework.");
@@ -178,7 +178,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
   const handleAddCorporateDirective = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await fetch('http://localhost:8000/api/admin/shared-goals/add', {
+      await fetch('https://atomberg-hackathon.onrender.com/api/admin/shared-goals/add', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thrust_area: dirArea, title: dirTitle, target_value: dirTarget, uom: dirUom, weightage: dirWeight, pushed_to: 'All Departments' })
       });
       setSuccessMessage("KPI securely pushed to all employee worksheets.");

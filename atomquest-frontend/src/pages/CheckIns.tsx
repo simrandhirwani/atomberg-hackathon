@@ -63,8 +63,8 @@ const CheckIns = ({ currentRole }: { currentRole: string }) => {
     setStatusFilter('All'); 
     
     const fetchUrl = currentRole === 'Manager' 
-      ? 'http://localhost:8000/api/manager/team'
-      : 'http://localhost:8000/api/admin/shared-goals';
+      ? 'https://atomberg-hackathon.onrender.com/api/manager/team'
+      : 'https://atomberg-hackathon.onrender.com/api/admin/shared-goals';
 
     fetch(fetchUrl)
       .then(res => res.json())
@@ -146,7 +146,7 @@ const CheckIns = ({ currentRole }: { currentRole: string }) => {
   const handleStatusChange = async (goalId: number, newStatus: string) => {
     setGoals(prev => prev.map(g => g.id === goalId ? { ...g, status: newStatus } : g));
     try {
-      await fetch(`http://localhost:8000/api/goals/${goalId}/status`, {
+      await fetch(`https://atomberg-hackathon.onrender.com/api/goals/${goalId}/status`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus })
       });
       setNotification(`Status saved: ${newStatus}`);

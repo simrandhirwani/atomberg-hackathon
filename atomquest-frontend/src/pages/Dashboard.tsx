@@ -69,7 +69,6 @@ const Dashboard = ({ currentRole }: { currentRole: string }) => {
       {/* BALANCED GRID SYSTEM */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
         
-        {/* The Atomberg Pulse - Now filling vertical space cleanly */}
         <section className="col-span-2 flex flex-col">
           <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-4">
             <BarChart2 size={20} className="text-yellow-500" /> The Atomberg Pulse

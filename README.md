@@ -84,7 +84,7 @@ uvicorn main:app --reload
 
 ```
 
-*Note: The backend runs on `http://localhost:8000` by default. You can hit the `/api/system/reset` endpoint to instantly seed the database with diverse test data.*
+*Note: The backend runs on `https://atomberg-hackathon.onrender.com` by default. You can hit the `/api/system/reset` endpoint to instantly seed the database with diverse test data.*
 
 **3. Start the React Frontend**
 
