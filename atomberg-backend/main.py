@@ -13,10 +13,10 @@ app = FastAPI(title="Atomberg Performance Portal Core Engine", version="2.2.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],  # Allows your Vercel app, localhost, or any tool to communicate seamlessly
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows GET, POST, OPTIONS, PUT, DELETE
+    allow_headers=["*"],  # Allows all headers (Content-Type, Authorization, etc.)
 )
 
 class GoalItemBase(BaseModel):
