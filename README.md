@@ -32,47 +32,7 @@ This solution was engineered with **Parameter 6 (Cost Optimization)** as a prima
 * **Failsafe Offline Engine:** The frontend features a robust caching/fallback state. If the database experiences downtime, the UI instantly injects a rich offline dataset, guaranteeing 100% uptime for presentations.
 
 ### Architecture Diagram
-graph TD
-    %% Define Styles
-    classDef frontend fill:#38bdf8,stroke:#0f172a,stroke-width:2px,color:#fff,font-weight:bold;
-    classDef backend fill:#10b981,stroke:#0f172a,stroke-width:2px,color:#fff,font-weight:bold;
-    classDef database fill:#f59e0b,stroke:#0f172a,stroke-width:2px,color:#fff,font-weight:bold;
-    classDef external fill:#64748b,stroke:#0f172a,stroke-width:2px,color:#fff,font-weight:bold;
-
-    %% Nodes
-    User(("🧑‍💻 User \n(Employee / Manager / Admin)"))
-    
-    subgraph "Frontend Layer (Vercel Edge Network)"
-        React["⚛️ React.js + Vite \n(UI / UX State Management)"]:::frontend
-        Tailwind["🎨 Tailwind CSS \n(Responsive Styling)"]:::frontend
-    end
-    
-    subgraph "Backend Layer (Render / Railway)"
-        FastAPI["⚡ FastAPI (Python) \n(REST API & Logic)"]:::backend
-        Pydantic["🛡️ Pydantic \n(BRD Data Validation)"]:::backend
-        SQLAlchemy["🔗 SQLAlchemy ORM \n(Database Querying)"]:::backend
-    end
-    
-    subgraph "Data Storage Layer"
-        Supabase[("🐘 PostgreSQL / Supabase \n(Relational Database)")]:::database
-    end
-
-    subgraph "Enterprise Integrations (Bonus)"
-        AzureAD["🪪 Microsoft Entra ID \n(SSO & Role Mapping)"]:::external
-    end
-
-    %% Connections
-    User -- "HTTPS / Browser" --> React
-    React --- Tailwind
-    React -- "REST API (JSON)" --> FastAPI
-    FastAPI --- Pydantic
-    Pydantic --- SQLAlchemy
-    SQLAlchemy -- "PostgreSQL Protocol" --> Supabase
-    
-    User -. "OAuth 2.0" .-> AzureAD
-    AzureAD -. "JWT Token" .-> FastAPI
----
-
+![Atomberg Architecture Diagram](./assets/architecture.png)
 ## 🏆 BRD Compliance & Feature Matrix
 
 This application achieves **100% adherence** to the core problem statement, including the strict Phase 1 and Phase 2 requirements, plus the Bonus Analytics/Escalation tiers.
