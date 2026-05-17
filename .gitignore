@@ -1,0 +1,48 @@
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+.venv/
+env/
+.env_backend
+
+# Local Database Files (Don't push local SQLite DBs if using them)
+*.sqlite3
+*.db
+
+# =========================
+# NODE & REACT (Frontend)
+# =========================
+# Dependencies
+node_modules/
+
+# Production Build outputs
+dist/
+dist-ssr/
+build/
+
+# Vite / React environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# npm/yarn/pnpm debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================
+# OS & EDITOR FILES
+# =========================
+.DS_Store
+.vscode/
+.idea/
+*.suo
+*.log
