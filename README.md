@@ -1,9 +1,3 @@
-Here is a highly professional, judge-ready `README.md`. It is specifically designed to map directly to the hackathon's evaluation rubric, making it incredibly easy for the judges to give you maximum points for BRD compliance, Cost Optimization, and Bonus Features.
-
-Copy this text and save it as `README.md` in the root of your repository.
-
----
-
 # 🎯 Atomberg: Enterprise Goal Setting & Tracking Portal
 
 A comprehensive, role-based organizational alignment platform designed to eliminate offline fragmentation, enforce strict BRD validation matrices, and provide real-time executive visibility into company-wide performance.
