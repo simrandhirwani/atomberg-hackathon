@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta 
 import models
 from database import engine, get_db
+from sqlalchemy import text
 
 models.Base.metadata.create_all(bind=engine)
 

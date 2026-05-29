@@ -117,35 +117,47 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
   };
 
   // ==========================================
-  // DATA FETCHING PIPELINES
+  // DATA FETCHING PIPELINE (WITH RATED TIMEOUTS)
   // ==========================================
   const loadDataPipelines = () => {
     setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
     
     const fetchUrl = currentRole === 'Employee' ? 'https://atomberg-hackathon.onrender.com/api/goals/Employee'
       : currentRole === 'Manager' ? 'https://atomberg-hackathon.onrender.com/api/manager/team'
       : 'https://atomberg-hackathon.onrender.com/api/admin/shared-goals';
 
-    fetch(fetchUrl)
-      .then(res => res.json())
+    // Establish an AbortController to clear stagnant requests after 5 seconds
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    fetch(fetchUrl, { signal: controller.signal })
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP status verification mismatch: ${res.status}`);
+        return res.json();
+      })
       .then(data => { 
-        if (!data || (Array.isArray(data) && data.length === 0)) throw new Error("Empty DB");
+        clearTimeout(timeoutId);
+        if (!data || (Array.isArray(data) && data.length === 0)) throw new Error("Empty DB Payload");
         
-        if (currentRole === 'Employee') {
-          setEmployeeGoals(normalizeGoals(data));
-        } else if (currentRole === 'Manager') {
-          setManagerQueue(normalizeTeamMembers(data));
-        } else {
-          setAdminDirectives(normalizeGoals(data));
-        }
+        if (currentRole === 'Employee') setEmployeeGoals(normalizeGoals(data));
+        else if (currentRole === 'Manager') setManagerQueue(normalizeTeamMembers(data));
+        else setAdminDirectives(normalizeGoals(data));
+        
         setLoading(false); 
       })
       .catch((err) => {
-        console.warn("Using Failsafe Offline Demo Data due to:", err);
+        clearTimeout(timeoutId);
+        console.warn("Falling back securely to offline datasets. Engine Error:", err);
+        
+        // Populate view states instantly from fallback allocations
         if (currentRole === 'Employee') setEmployeeGoals(FALLBACK_EMPLOYEE);
         else if (currentRole === 'Manager') setManagerQueue(FALLBACK_MANAGER);
         else setAdminDirectives(normalizeGoals(FALLBACK_ADMIN));
-        setLoading(false);
+        
+        setErrorMessage("Notice: Live server sync timed out (Database Sleeping). Loaded safe fallback sandbox sandbox workspace.");
+        setLoading(false); // Force dismiss the loading animation loop
       });
   };
 
@@ -180,7 +192,7 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
   };
 
   // ==========================================
-  // SYNC ACTION TRIGGERS (MUTATES SUPABASE LIVE)
+  // SYNC ACTION TRIGGERS
   // ==========================================
   const handleSubmitToBackend = async () => {
     setErrorMessage(null); 
@@ -205,7 +217,6 @@ const GoalSheet = ({ currentRole }: { currentRole: string }) => {
       
       if (response.ok) {
         setSuccessMessage("Worksheet successfully synced with Supabase live database.");
-        // Instantly reload database pipeline to preserve user additions permanently
         loadDataPipelines();
       } else {
         setErrorMessage(data.detail || "Validation check failure.");
